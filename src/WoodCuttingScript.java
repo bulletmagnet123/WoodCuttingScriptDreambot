@@ -2,6 +2,7 @@ import org.dreambot.api.input.Mouse;
 import org.dreambot.api.methods.container.impl.Inventory;
 import org.dreambot.api.methods.container.impl.bank.Bank;
 import org.dreambot.api.methods.container.impl.bank.BankLocation;
+import org.dreambot.api.methods.input.Camera;
 import org.dreambot.api.methods.interactive.GameObjects;
 import org.dreambot.api.methods.map.Area;
 import org.dreambot.api.methods.map.Map;
@@ -14,7 +15,9 @@ import org.dreambot.api.script.Category;
 import org.dreambot.api.script.ScriptManifest;
 import org.dreambot.api.script.listener.ChatListener;
 import org.dreambot.api.utilities.Timer;
+import org.dreambot.api.wrappers.interactive.Entity;
 import org.dreambot.api.wrappers.interactive.GameObject;
+import org.dreambot.api.wrappers.interactive.Model;
 import org.dreambot.api.wrappers.interactive.Player;
 import org.dreambot.api.wrappers.widgets.message.Message;
 
@@ -29,35 +32,38 @@ public class WoodCuttingScript extends AbstractScript implements ChatListener {
     Area ArdougnBankLocation = new Area(2621, 3330, 2611, 3335);
     String axe = "Dragon axe";
     GameObject treeStump = null;
-    int TreesChopped;
     private Timer timeRan;
     int beginningXP;
     int currentXp;
     int xpGained;
-    private final Color color1 = new Color(51, 51, 51, 147);
-    private final Color color2 = new Color(138, 54, 15);
-    private final Color color3 = new Color(255, 255, 255);
     private final BasicStroke stroke1 = new BasicStroke(5);
     private DrawMouseUtil drawMouseUtil = new DrawMouseUtil();
+    public int TreesChopped = 0;
+    public ZenAntiBan antiban;
+
+    @Override
+    public void onMessage(Message m) {
+        if (m.getMessage().contains("You get some magic logs.")) {
+            cut++;
+        }
+    }
+
 
 
     public void onStart() {
+        antiban = new ZenAntiBan(this);
         drawMouseUtil.setRandomColor();
         timeRan = new Timer();
         SkillTracker.start();
         beginningXP = Skills.getExperience(Skill.WOODCUTTING);
+
         if (hasEquipment()){
             chop();
         } else {
             bank();
         }
     }
-    @Override
-    public void onGameMessage(Message message) {
-        if (message.getMessage().contains("You get some magic logs")){
-            TreesChopped++;
-        }
-    }
+
     public void bank(){
         if (hasEquipment() && !Inventory.isFull()) {
             chop();
@@ -73,6 +79,7 @@ public class WoodCuttingScript extends AbstractScript implements ChatListener {
                 chop();
             }
         }
+
         if (Inventory.isFull()) {
             Walking.walk(BankLocation.ARDOUGNE_NORTH);
             sleep(1000, 2500);
@@ -86,6 +93,7 @@ public class WoodCuttingScript extends AbstractScript implements ChatListener {
             }
         }
     }
+
     public void chop(){
         GameObject MagicTree = GameObjects.closest("Magic tree");
             if (Inventory.isFull()){
@@ -97,14 +105,19 @@ public class WoodCuttingScript extends AbstractScript implements ChatListener {
                     sleep(1280, 2700);
                 } else if (MagicTrees.contains(getLocalPlayer())){
                     if (MagicTree != null){
+                        Camera.rotateToEntity(MagicTree);
+                        sleep(1000, 1500);
                         MagicTree.interact("Chop down");
                         sleep(1500, 2500);
-                        Mouse.moveMouseOutsideScreen();
+                        while (getLocalPlayer().isAnimating()){
+                            antiban.antiBan();
+                        }
                         sleepUntil(() -> getLocalPlayer().getAnimation() == -1, 240000);
                     }
                 }
             }
     }
+
     public boolean hasEquipment() {
         boolean yes;
         if (Inventory.contains(axe)) {
@@ -117,7 +130,7 @@ public class WoodCuttingScript extends AbstractScript implements ChatListener {
 
 
 
-    @Override
+
     public int onLoop() {
         if (hasEquipment() && !Inventory.isFull()){
             chop();
@@ -127,35 +140,38 @@ public class WoodCuttingScript extends AbstractScript implements ChatListener {
 
         return 0;
     }
+
+    public int cut;
+
+
+
+
     public void onPaint(Graphics2D g){
         long ttl = SkillTracker.getTimeToLevel(Skill.WOODCUTTING);
         long timeTNL = ttl;
-        g.setColor(Color.CYAN);
+        g.setColor(new Color(51, 51, 51, 15));
         g.drawRect(10, 250, 300, 400);
-
-
+        g.fillRect(10, 250, 300, 400);
+        g.setStroke(stroke1);
         Timer.formatTime(ttl);
         Polygon tile = Map.getPolygon(getLocalPlayer().getTile());
-
         g.drawPolygon(tile);
         currentXp = Skills.getExperience(Skill.WOODCUTTING);
         xpGained = currentXp - beginningXP;
         SkillTracker.getTimeToLevel(Skill.WOODCUTTING);
-        g.setColor(color1);
-        g.fillRect(10, 250, 300, 350);
-        g.setColor(color2);
-        g.setStroke(stroke1);
-        g.setColor(color3);
+        g.setColor(Color.CYAN);
         g.drawString("Bullets Chopper", 140, 280);
-        g.drawString("current xp: " + currentXp, 200, 450);
-        g.drawString("Trees Chopped " + TreesChopped, 200, 425);
-        g.drawString("Time Ran: " + timeRan.formatTime(), 200, 400);
-        g.drawString("XP GAINED: " + xpGained, 200, 375);
-        g.drawString("Current level: " + Skills.getRealLevel(Skill.WOODCUTTING), 200, 350);
+        g.drawString("Anti-Ban Status: " + (antiban.getStatus().equals("") ? "Inactive" : antiban.getStatus()),150, 320);
+        g.drawString("current xp: " + currentXp, 150, 450);
+        g.drawString("Trees Chopped: " + cut, 150 ,425);
+        g.drawString("Time Ran: " + timeRan.formatTime(), 150, 400);
+        g.drawString("XP GAINED: " + xpGained, 150, 375);
+        g.drawString("Current level: " + Skills.getRealLevel(Skill.WOODCUTTING), 150, 350);
         g.drawString("Time tell level: " + ft(ttl), 20,300);
         drawMouseUtil.drawRandomMouse(g);
         drawMouseUtil.drawRandomMouseTrail(g);
-
+        GameObject MagicTree = GameObjects.closest("Magic tree");
+        MagicTree.getModel().drawWireFrame(g);
     }
     private String ft(long duration)
     {
@@ -177,4 +193,5 @@ public class WoodCuttingScript extends AbstractScript implements ChatListener {
         return res;
     }
 }
+
 
