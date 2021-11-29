@@ -149,7 +149,7 @@ public class WoodCuttingScript extends AbstractScript implements ChatListener {
     public void onPaint(Graphics2D g){
         long ttl = SkillTracker.getTimeToLevel(Skill.WOODCUTTING);
         long timeTNL = ttl;
-        g.setColor(new Color(51, 51, 51, 15));
+        g.setColor(new Color(51, 51, 51, 140));
         g.drawRect(10, 250, 300, 400);
         g.fillRect(10, 250, 300, 400);
         g.setStroke(stroke1);
