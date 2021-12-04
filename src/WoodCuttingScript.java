@@ -1,4 +1,5 @@
-import org.dreambot.api.input.Mouse;
+import org.dreambot.api.Client;
+import org.dreambot.api.methods.container.impl.DropPattern;
 import org.dreambot.api.methods.container.impl.Inventory;
 import org.dreambot.api.methods.container.impl.bank.Bank;
 import org.dreambot.api.methods.container.impl.bank.BankLocation;
@@ -15,12 +16,10 @@ import org.dreambot.api.script.Category;
 import org.dreambot.api.script.ScriptManifest;
 import org.dreambot.api.script.listener.ChatListener;
 import org.dreambot.api.utilities.Timer;
-import org.dreambot.api.wrappers.interactive.Entity;
 import org.dreambot.api.wrappers.interactive.GameObject;
-import org.dreambot.api.wrappers.interactive.Model;
-import org.dreambot.api.wrappers.interactive.Player;
 import org.dreambot.api.wrappers.widgets.message.Message;
 
+import javax.swing.*;
 import java.awt.*;
 import java.util.concurrent.TimeUnit;
 
@@ -41,6 +40,12 @@ public class WoodCuttingScript extends AbstractScript implements ChatListener {
     public int TreesChopped = 0;
     public ZenAntiBan antiban;
 
+    public String BankOrDrop;
+
+
+    boolean StartScript = false;
+
+
     @Override
     public void onMessage(Message m) {
         if (m.getMessage().contains("You get some magic logs.")) {
@@ -49,25 +54,28 @@ public class WoodCuttingScript extends AbstractScript implements ChatListener {
     }
 
 
-
     public void onStart() {
         antiban = new ZenAntiBan(this);
         drawMouseUtil.setRandomColor();
         timeRan = new Timer();
         SkillTracker.start();
         beginningXP = Skills.getExperience(Skill.WOODCUTTING);
-
-        if (hasEquipment()){
-            chop();
-        } else {
-            bank();
+        GUI();
+        if (StartScript) {
+            if (hasEquipment() && Inventory.onlyContains(axe)) {
+                chop();
+            } else {
+                bank();
+            }
         }
     }
 
-    public void bank(){
+    public void bank() {
+
         if (hasEquipment() && !Inventory.isFull()) {
             chop();
         } else if (Inventory.isEmpty()) {
+
             Walking.walk(BankLocation.ARDOUGNE_NORTH);
             sleep(1000, 2500);
             Bank.openClosest();
@@ -76,46 +84,60 @@ public class WoodCuttingScript extends AbstractScript implements ChatListener {
             sleep(500, 1000);
             Bank.close();
             if (hasEquipment()) {
-                chop();
-            }
-        }
 
-        if (Inventory.isFull()) {
+            }
+        } else if (Inventory.isFull()) {
+
             Walking.walk(BankLocation.ARDOUGNE_NORTH);
             sleep(1000, 2500);
-            if (ArdougnBankLocation.contains(getLocalPlayer())){
+            if (ArdougnBankLocation.contains(getLocalPlayer())) {
                 Bank.openClosest();
                 sleep(500, 1200);
                 Bank.depositAllExcept("Dragon axe");
                 Bank.close();
+
             } else {
                 Walking.walk(BankLocation.ARDOUGNE_NORTH);
             }
+        } else if (Inventory.onlyContains(axe)) {
+            chop();
+        } else {
+            chop();
         }
     }
 
-    public void chop(){
+    public void drop() {
+        sleep(500, 1300);
+        Inventory.dropAllExcept(axe);
+        sleep(1000, 2500);
+    }
+
+    public void chop() {
         GameObject MagicTree = GameObjects.closest("Magic tree");
-            if (Inventory.isFull()){
+        if (Inventory.isFull()) {
+            if (BankOrDrop == "BANK"){
                 bank();
-            } else {
-                if (!MagicTrees.contains(getLocalPlayer())) {
-                    sleep(1000, 2500);
-                    Walking.walk(MagicTrees.getRandomTile());
-                    sleep(1280, 2700);
-                } else if (MagicTrees.contains(getLocalPlayer())){
-                    if (MagicTree != null){
-                        Camera.rotateToEntity(MagicTree);
-                        sleep(1000, 1500);
-                        MagicTree.interact("Chop down");
-                        sleep(1500, 2500);
-                        while (getLocalPlayer().isAnimating()){
-                            antiban.antiBan();
-                        }
-                        sleepUntil(() -> getLocalPlayer().getAnimation() == -1, 240000);
+            } else if (BankOrDrop == "DROP") {
+                drop();
+            }
+        } else {
+            if (!MagicTrees.contains(getLocalPlayer())) {
+                sleep(1000, 2500);
+                Walking.walk(MagicTrees.getRandomTile());
+                sleep(1280, 2700);
+            } else if (MagicTrees.contains(getLocalPlayer())) {
+                if (MagicTree != null) {
+                    Camera.rotateToEntity(MagicTree);
+                    sleep(1000, 1500);
+                    MagicTree.interact("Chop down");
+                    sleep(1500, 2500);
+                    while (getLocalPlayer().isAnimating()) {
+                        antiban.antiBan();
                     }
+                    sleepUntil(() -> getLocalPlayer().getAnimation() == -1, 240000);
                 }
             }
+        }
     }
 
     public boolean hasEquipment() {
@@ -129,24 +151,60 @@ public class WoodCuttingScript extends AbstractScript implements ChatListener {
     }
 
 
-
-
     public int onLoop() {
-        if (hasEquipment() && !Inventory.isFull()){
-            chop();
-        } else {
-            bank();
+        if (StartScript) {
+            if (hasEquipment() && !Inventory.isFull()) {
+                chop();
+            } else {
+                if (BankOrDrop == "BANK") {
+                    bank();
+                } else if (BankOrDrop == "DROP"){
+                    drop();
+                }
+            }
         }
-
         return 0;
+
+    }
+
+    public void GUI() {
+        JFrame frame = new JFrame();
+        frame.setTitle("BulletsChopper");
+        frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+        frame.setPreferredSize(new Dimension(300, 170));
+        frame.pack();
+        frame.setVisible(true);
+
+        JPanel settingPanel = new JPanel();
+        frame.add(settingPanel);
+
+
+        settingPanel.setLayout(new GridLayout(0, 2));
+        JLabel Mode = new JLabel();
+        Mode.setText("Bank or Drop");
+        settingPanel.add(Mode);
+        JComboBox<String> BankorDopBox = new JComboBox<>(new String[]{
+           "BANK", "DROP"
+        });
+        settingPanel.add(BankorDopBox);
+
+
+        JButton start = new JButton();
+        settingPanel.add(start);
+
+        start.setText("Start");
+        start.addActionListener(l -> {
+            BankOrDrop = BankorDopBox.getSelectedItem().toString();
+
+            StartScript = true;
+            frame.dispose();
+        });
     }
 
     public int cut;
 
 
-
-
-    public void onPaint(Graphics2D g){
+    public void onPaint(Graphics2D g) {
         long ttl = SkillTracker.getTimeToLevel(Skill.WOODCUTTING);
         long timeTNL = ttl;
         g.setColor(new Color(51, 51, 51, 140));
@@ -161,20 +219,24 @@ public class WoodCuttingScript extends AbstractScript implements ChatListener {
         SkillTracker.getTimeToLevel(Skill.WOODCUTTING);
         g.setColor(Color.CYAN);
         g.drawString("Bullets Chopper", 140, 280);
-        g.drawString("Anti-Ban Status: " + (antiban.getStatus().equals("") ? "Inactive" : antiban.getStatus()),150, 320);
+        g.drawString("Anti-Ban Status: " + (antiban.getStatus().equals("") ? "Inactive" : antiban.getStatus()), 150, 320);
         g.drawString("current xp: " + currentXp, 150, 450);
-        g.drawString("Trees Chopped: " + cut, 150 ,425);
+        g.drawString("Trees Chopped: " + cut, 150, 425);
         g.drawString("Time Ran: " + timeRan.formatTime(), 150, 400);
         g.drawString("XP GAINED: " + xpGained, 150, 375);
         g.drawString("Current level: " + Skills.getRealLevel(Skill.WOODCUTTING), 150, 350);
-        g.drawString("Time tell level: " + ft(ttl), 20,300);
+        g.drawString("Time tell level: " + ft(ttl), 20, 300);
+        g.drawString("bank or drop:  " + BankOrDrop, 18, 320);
         drawMouseUtil.drawRandomMouse(g);
         drawMouseUtil.drawRandomMouseTrail(g);
-        GameObject MagicTree = GameObjects.closest("Magic tree");
-        MagicTree.getModel().drawWireFrame(g);
+        GameObject i;
+        i = (GameObject) GameObjects.all("Magic");
+        i.getModel().drawWireFrame(g);
+
+
     }
-    private String ft(long duration)
-    {
+
+    private String ft(long duration) {
         String res = "";
         long days = TimeUnit.MILLISECONDS.toDays(duration);
         long hours = TimeUnit.MILLISECONDS.toHours(duration)
@@ -192,6 +254,8 @@ public class WoodCuttingScript extends AbstractScript implements ChatListener {
         }
         return res;
     }
+
+
 }
 
 
