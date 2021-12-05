@@ -29,6 +29,7 @@ public class WoodCuttingScript extends AbstractScript implements ChatListener {
     Area YewTrees = new Area(2717, 3467, 2704, 3457);
     Area MagicTrees = new Area(2707, 3395, 2698, 3399);
     Area ArdougnBankLocation = new Area(2621, 3330, 2611, 3335);
+    Area LevelChop = new Area(2332, 3051, 2336, 3046);
     String axe = "Dragon axe";
     GameObject treeStump = null;
     private Timer timeRan;
@@ -39,6 +40,7 @@ public class WoodCuttingScript extends AbstractScript implements ChatListener {
     private DrawMouseUtil drawMouseUtil = new DrawMouseUtil();
     public int TreesChopped = 0;
     public ZenAntiBan antiban;
+    public String LevelOrMoney;
 
     public String BankOrDrop;
 
@@ -48,7 +50,7 @@ public class WoodCuttingScript extends AbstractScript implements ChatListener {
 
     @Override
     public void onMessage(Message m) {
-        if (m.getMessage().contains("You get some magic logs.")) {
+        if (m.getMessage().contains("You get some")) {
             cut++;
         }
     }
@@ -76,29 +78,25 @@ public class WoodCuttingScript extends AbstractScript implements ChatListener {
             chop();
         } else if (Inventory.isEmpty()) {
 
-            Walking.walk(BankLocation.ARDOUGNE_NORTH);
+            Walking.walk(Bank.getClosestBankLocation());
             sleep(1000, 2500);
             Bank.openClosest();
             sleep(500, 1200);
             Bank.withdraw("Dragon axe", 1);
             sleep(500, 1000);
             Bank.close();
-            if (hasEquipment()) {
-
+            if (hasEquipment() && !Inventory.isFull()) {
+                chop();
             }
         } else if (Inventory.isFull()) {
 
-            Walking.walk(BankLocation.ARDOUGNE_NORTH);
+            Walking.walk(Bank.getClosestBankLocation());
             sleep(1000, 2500);
-            if (ArdougnBankLocation.contains(getLocalPlayer())) {
                 Bank.openClosest();
                 sleep(500, 1200);
                 Bank.depositAllExcept("Dragon axe");
                 Bank.close();
-
-            } else {
-                Walking.walk(BankLocation.ARDOUGNE_NORTH);
-            }
+                Walking.walk(Bank.getClosestBankLocation());
         } else if (Inventory.onlyContains(axe)) {
             chop();
         } else {
@@ -113,32 +111,61 @@ public class WoodCuttingScript extends AbstractScript implements ChatListener {
     }
 
     public void chop() {
-        GameObject MagicTree = GameObjects.closest("Magic tree");
-        if (Inventory.isFull()) {
-            if (BankOrDrop == "BANK"){
-                bank();
-            } else if (BankOrDrop == "DROP") {
-                drop();
-            }
-        } else {
-            if (!MagicTrees.contains(getLocalPlayer())) {
-                sleep(1000, 2500);
-                Walking.walk(MagicTrees.getRandomTile());
-                sleep(1280, 2700);
-            } else if (MagicTrees.contains(getLocalPlayer())) {
-                if (MagicTree != null) {
-                    Camera.rotateToEntity(MagicTree);
-                    sleep(1000, 1500);
-                    MagicTree.interact("Chop down");
-                    sleep(1500, 2500);
-                    while (getLocalPlayer().isAnimating()) {
-                        antiban.antiBan();
+        if (LevelOrMoney == "LEVEL") {
+            GameObject TeakTree = GameObjects.closest("Teak");
+            if (Inventory.isFull()) {
+                if (BankOrDrop == "BANK") {
+                    bank();
+                } else if (BankOrDrop == "DROP") {
+                    drop();
+                }
+            } else {
+                if (!LevelChop.contains(getLocalPlayer())) {
+                    sleep(1000, 2500);
+                    Walking.walk(LevelChop.getRandomTile());
+                    sleep(1280, 2700);
+                } else if (LevelChop.contains(getLocalPlayer())) {
+                    if (TeakTree != null) {
+                        Camera.rotateToEntity(TeakTree);
+                        sleep(1000, 1500);
+                        TeakTree.interact("Chop down");
+                        sleep(1500, 2500);
+                        while (getLocalPlayer().isAnimating()) {
+                            antiban.antiBan();
+                        }
+                        sleepUntil(() -> getLocalPlayer().getAnimation() == -1, 240000);
                     }
-                    sleepUntil(() -> getLocalPlayer().getAnimation() == -1, 240000);
+                }
+            }
+        } else if (LevelOrMoney == "MONEY"){
+            GameObject MagicTree = GameObjects.closest("Magic tree");
+            if (Inventory.isFull()) {
+                if (BankOrDrop == "BANK") {
+                    bank();
+                } else if (BankOrDrop == "DROP") {
+                    drop();
+                }
+            } else {
+                if (!MagicTrees.contains(getLocalPlayer())) {
+                    sleep(1000, 2500);
+                    Walking.walk(MagicTrees.getRandomTile());
+                    sleep(1280, 2700);
+                } else if (MagicTrees.contains(getLocalPlayer())) {
+                    if (MagicTree != null) {
+                        Camera.rotateToEntity(MagicTree);
+                        sleep(1000, 1500);
+                        MagicTree.interact("Chop down");
+                        sleep(1500, 2500);
+                        while (getLocalPlayer().isAnimating()) {
+                            antiban.antiBan();
+                        }
+                        sleepUntil(() -> getLocalPlayer().getAnimation() == -1, 240000);
+                    }
                 }
             }
         }
     }
+
 
     public boolean hasEquipment() {
         boolean yes;
@@ -158,7 +185,7 @@ public class WoodCuttingScript extends AbstractScript implements ChatListener {
             } else {
                 if (BankOrDrop == "BANK") {
                     bank();
-                } else if (BankOrDrop == "DROP"){
+                } else if (BankOrDrop == "DROP") {
                     drop();
                 }
             }
@@ -184,9 +211,13 @@ public class WoodCuttingScript extends AbstractScript implements ChatListener {
         Mode.setText("Bank or Drop");
         settingPanel.add(Mode);
         JComboBox<String> BankorDopBox = new JComboBox<>(new String[]{
-           "BANK", "DROP"
+                "BANK", "DROP"
         });
         settingPanel.add(BankorDopBox);
+        JComboBox<String> LevelOrMoneyBox = new JComboBox<>(new String[]{
+                "LEVEL", "MONEY"
+        });
+        settingPanel.add(LevelOrMoneyBox);
 
 
         JButton start = new JButton();
@@ -195,6 +226,7 @@ public class WoodCuttingScript extends AbstractScript implements ChatListener {
         start.setText("Start");
         start.addActionListener(l -> {
             BankOrDrop = BankorDopBox.getSelectedItem().toString();
+            LevelOrMoney = LevelOrMoneyBox.getSelectedItem().toString();
 
             StartScript = true;
             frame.dispose();
@@ -226,7 +258,8 @@ public class WoodCuttingScript extends AbstractScript implements ChatListener {
         g.drawString("XP GAINED: " + xpGained, 150, 375);
         g.drawString("Current level: " + Skills.getRealLevel(Skill.WOODCUTTING), 150, 350);
         g.drawString("Time tell level: " + ft(ttl), 20, 300);
-        g.drawString("bank or drop:  " + BankOrDrop, 18, 320);
+        g.drawString("bank or drop:  " + BankOrDrop, 15, 320);
+        g.drawString("Level or Money: " + LevelOrMoney, 15, 340);
         drawMouseUtil.drawRandomMouse(g);
         drawMouseUtil.drawRandomMouseTrail(g);
         GameObject i;
