@@ -1,3 +1,4 @@
+import com.sun.source.tree.Tree;
 import org.dreambot.api.Client;
 import org.dreambot.api.methods.container.impl.DropPattern;
 import org.dreambot.api.methods.container.impl.Inventory;
@@ -17,11 +18,18 @@ import org.dreambot.api.script.ScriptManifest;
 import org.dreambot.api.script.listener.ChatListener;
 import org.dreambot.api.utilities.Timer;
 import org.dreambot.api.wrappers.interactive.GameObject;
+import org.dreambot.api.wrappers.interactive.Model;
 import org.dreambot.api.wrappers.widgets.message.Message;
+import picocli.CommandLine;
 
 import javax.swing.*;
 import java.awt.*;
+import java.lang.reflect.Array;
+import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+
+import static org.dreambot.api.methods.interactive.GameObjects.all;
 
 @ScriptManifest(category = Category.WOODCUTTING, name = "Bullets Woodcutter", author = "Bulletmagnet", version = 1.0)
 public class WoodCuttingScript extends AbstractScript implements ChatListener {
@@ -30,7 +38,9 @@ public class WoodCuttingScript extends AbstractScript implements ChatListener {
     Area MagicTrees = new Area(2707, 3395, 2698, 3399);
     Area ArdougnBankLocation = new Area(2621, 3330, 2611, 3335);
     Area LevelChop = new Area(2332, 3051, 2336, 3046);
-    String axe = "Dragon axe";
+    Area WillowLevel = new Area(3056, 3250, 3063, 3255);
+    String axe = "Rune axe";
+
     GameObject treeStump = null;
     private Timer timeRan;
     int beginningXP;
@@ -40,7 +50,7 @@ public class WoodCuttingScript extends AbstractScript implements ChatListener {
     private DrawMouseUtil drawMouseUtil = new DrawMouseUtil();
     public int TreesChopped = 0;
     public ZenAntiBan antiban;
-    public String LevelOrMoney;
+    public String LevelOrMoneyOrWillowLevel;
 
     public String BankOrDrop;
 
@@ -82,7 +92,7 @@ public class WoodCuttingScript extends AbstractScript implements ChatListener {
             sleep(1000, 2500);
             Bank.openClosest();
             sleep(500, 1200);
-            Bank.withdraw("Dragon axe", 1);
+            Bank.withdraw(axe, 1);
             sleep(500, 1000);
             Bank.close();
             if (hasEquipment() && !Inventory.isFull()) {
@@ -92,11 +102,11 @@ public class WoodCuttingScript extends AbstractScript implements ChatListener {
 
             Walking.walk(Bank.getClosestBankLocation());
             sleep(1000, 2500);
-                Bank.openClosest();
-                sleep(500, 1200);
-                Bank.depositAllExcept("Dragon axe");
-                Bank.close();
-                Walking.walk(Bank.getClosestBankLocation());
+            Bank.openClosest();
+            sleep(500, 1200);
+            Bank.depositAllExcept("Dragon axe");
+            Bank.close();
+            Walking.walk(Bank.getClosestBankLocation());
         } else if (Inventory.onlyContains(axe)) {
             chop();
         } else {
@@ -111,7 +121,7 @@ public class WoodCuttingScript extends AbstractScript implements ChatListener {
     }
 
     public void chop() {
-        if (LevelOrMoney == "LEVEL") {
+        if (LevelOrMoneyOrWillowLevel == "LEVEL") {
             GameObject TeakTree = GameObjects.closest("Teak");
             if (Inventory.isFull()) {
                 if (BankOrDrop == "BANK") {
@@ -137,7 +147,7 @@ public class WoodCuttingScript extends AbstractScript implements ChatListener {
                     }
                 }
             }
-        } else if (LevelOrMoney == "MONEY"){
+        } else if (LevelOrMoneyOrWillowLevel == "MONEY") {
             GameObject MagicTree = GameObjects.closest("Magic tree");
             if (Inventory.isFull()) {
                 if (BankOrDrop == "BANK") {
@@ -145,7 +155,6 @@ public class WoodCuttingScript extends AbstractScript implements ChatListener {
                 } else if (BankOrDrop == "DROP") {
                     drop();
                 }
-            } else {
                 if (!MagicTrees.contains(getLocalPlayer())) {
                     sleep(1000, 2500);
                     Walking.walk(MagicTrees.getRandomTile());
@@ -155,6 +164,32 @@ public class WoodCuttingScript extends AbstractScript implements ChatListener {
                         Camera.rotateToEntity(MagicTree);
                         sleep(1000, 1500);
                         MagicTree.interact("Chop down");
+                        sleep(1500, 2500);
+                        while (getLocalPlayer().isAnimating()) {
+                            antiban.antiBan();
+                        }
+                        sleepUntil(() -> getLocalPlayer().getAnimation() == -1, 240000);
+                    }
+                }
+            }
+        } else if (Objects.equals(LevelOrMoneyOrWillowLevel, "WillowLevel")) {
+            GameObject Willow = GameObjects.closest("Willow");
+            if (Inventory.isFull()) {
+                if (BankOrDrop == "BANK") {
+                    bank();
+                } else if (BankOrDrop == "DROP") {
+                    drop();
+                }
+            } else {
+                if (!WillowLevel.contains(getLocalPlayer())) {
+                    sleep(1000, 2500);
+                    Walking.walk(WillowLevel);
+                    sleep(1280, 2700);
+                } else if (WillowLevel.contains(getLocalPlayer())) {
+                    if (Willow != null) {
+                        Camera.rotateToEntity(Willow);
+                        sleep(1000, 1500);
+                        Willow.interact("Chop down");
                         sleep(1500, 2500);
                         while (getLocalPlayer().isAnimating()) {
                             antiban.antiBan();
@@ -214,10 +249,10 @@ public class WoodCuttingScript extends AbstractScript implements ChatListener {
                 "BANK", "DROP"
         });
         settingPanel.add(BankorDopBox);
-        JComboBox<String> LevelOrMoneyBox = new JComboBox<>(new String[]{
-                "LEVEL", "MONEY"
+        JComboBox<String> LevelOrMoneyOrWillowLevelBox = new JComboBox<>(new String[]{
+                "LEVEL", "MONEY", "WillowLevel"
         });
-        settingPanel.add(LevelOrMoneyBox);
+        settingPanel.add(LevelOrMoneyOrWillowLevelBox);
 
 
         JButton start = new JButton();
@@ -226,7 +261,8 @@ public class WoodCuttingScript extends AbstractScript implements ChatListener {
         start.setText("Start");
         start.addActionListener(l -> {
             BankOrDrop = BankorDopBox.getSelectedItem().toString();
-            LevelOrMoney = LevelOrMoneyBox.getSelectedItem().toString();
+            LevelOrMoneyOrWillowLevel = LevelOrMoneyOrWillowLevelBox.getSelectedItem().toString();
+
 
             StartScript = true;
             frame.dispose();
@@ -259,13 +295,14 @@ public class WoodCuttingScript extends AbstractScript implements ChatListener {
         g.drawString("Current level: " + Skills.getRealLevel(Skill.WOODCUTTING), 150, 350);
         g.drawString("Time tell level: " + ft(ttl), 20, 300);
         g.drawString("bank or drop:  " + BankOrDrop, 15, 320);
-        g.drawString("Level or Money: " + LevelOrMoney, 15, 340);
+        g.drawString("Level or Money: " + LevelOrMoneyOrWillowLevel, 15, 340);
         drawMouseUtil.drawRandomMouse(g);
         drawMouseUtil.drawRandomMouseTrail(g);
-        GameObject i;
-        i = (GameObject) GameObjects.all("Magic");
-        i.getModel().drawWireFrame(g);
-
+        int i = 0;
+        for (i = 0; i < 10; i++ ){
+            List<GameObject> Tree = all("Willow");
+            Tree.get(i).getModel().drawWireFrame(g);
+        }
 
     }
 
